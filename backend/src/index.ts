@@ -8,12 +8,21 @@ import { desc, sql } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
-// Support both local dev (../.env) and production deploy (.env is in same dir)
-const envPath = fs.existsSync(path.join(__dirname, '.env')) 
-  ? path.join(__dirname, '.env')
-  : path.join(__dirname, '../../.env');
+const candidateEnvPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '../../../.env'),
+];
 
-dotenv.config({ path: envPath });
+for (const envPath of candidateEnvPaths) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break;
+  }
+}
+dotenv.config();
 
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.VISITOR_TOKEN_SECRET || process.env.VISITOR_TOKEN_SECRET.length < 32) {

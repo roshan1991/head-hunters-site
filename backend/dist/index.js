@@ -44,11 +44,20 @@ const schema_1 = require("./db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
-// Support both local dev (../.env) and production deploy (.env is in same dir)
-const envPath = fs_1.default.existsSync(path_1.default.join(__dirname, '.env'))
-    ? path_1.default.join(__dirname, '.env')
-    : path_1.default.join(__dirname, '../../.env');
-dotenv_1.default.config({ path: envPath });
+const candidateEnvPaths = [
+    path_1.default.resolve(process.cwd(), '.env'),
+    path_1.default.resolve(__dirname, '.env'),
+    path_1.default.resolve(__dirname, '../.env'),
+    path_1.default.resolve(__dirname, '../../.env'),
+    path_1.default.resolve(__dirname, '../../../.env'),
+];
+for (const envPath of candidateEnvPaths) {
+    if (fs_1.default.existsSync(envPath)) {
+        dotenv_1.default.config({ path: envPath });
+        break;
+    }
+}
+dotenv_1.default.config();
 if (process.env.NODE_ENV === 'production') {
     if (!process.env.VISITOR_TOKEN_SECRET || process.env.VISITOR_TOKEN_SECRET.length < 32) {
         console.error("FATAL: VISITOR_TOKEN_SECRET is missing or weak in production. Must be at least 32 characters.");

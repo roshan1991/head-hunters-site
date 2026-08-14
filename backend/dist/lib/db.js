@@ -36,25 +36,56 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.pool = exports.db = void 0;
+exports.databaseUrl = exports.pool = exports.db = void 0;
 const mysql2_1 = require("drizzle-orm/mysql2");
 const promise_1 = __importDefault(require("mysql2/promise"));
 const schema = __importStar(require("../db/schema"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
-const envPath = fs_1.default.existsSync(path_1.default.resolve(__dirname, "../.env"))
-    ? path_1.default.resolve(__dirname, "../.env")
-    : fs_1.default.existsSync(path_1.default.resolve(__dirname, "../../.env"))
-        ? path_1.default.resolve(__dirname, "../../.env")
-        : path_1.default.resolve(__dirname, "../../../.env");
-dotenv_1.default.config({ path: envPath });
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required for MySQL connection");
+// Find and load .env file from multiple possible paths
+const candidateEnvPaths = [
+    path_1.default.resolve(process.cwd(), ".env"),
+    path_1.default.resolve(__dirname, ".env"),
+    path_1.default.resolve(__dirname, "../.env"),
+    path_1.default.resolve(__dirname, "../../.env"),
+    path_1.default.resolve(__dirname, "../../../.env"),
+];
+for (const envPath of candidateEnvPaths) {
+    if (fs_1.default.existsSync(envPath)) {
+        dotenv_1.default.config({ path: envPath });
+        break;
+    }
 }
+// Fallback to default dotenv config if none of specific paths matched
+dotenv_1.default.config();
+// Determine database connection URL from .env
+function getDatabaseUrl() {
+    if (process.env.DATABASE_URL) {
+        return process.env.DATABASE_URL;
+    }
+    if (process.env.DATABASE_MIGRATION_URL) {
+        return process.env.DATABASE_MIGRATION_URL;
+    }
+    if (process.env.MYSQL_URL) {
+        return process.env.MYSQL_URL;
+    }
+    // Construct from individual environment variables if available
+    const host = process.env.DB_HOST || process.env.MYSQL_HOST;
+    const user = process.env.DB_USER || process.env.MYSQL_USER;
+    const password = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "";
+    const database = process.env.DB_NAME || process.env.MYSQL_DATABASE;
+    const port = process.env.DB_PORT || process.env.MYSQL_PORT || "3306";
+    if (host && user && database) {
+        const encodedPassword = encodeURIComponent(password);
+        return `mysql://${user}:${encodedPassword}@${host}:${port}/${database}`;
+    }
+    throw new Error("Missing database connection settings in .env! Please set DATABASE_URL (e.g. mysql://user:password@localhost:3306/dbname) or individual DB_HOST, DB_USER, DB_PASSWORD, DB_NAME in .env");
+}
+const databaseUrl = getDatabaseUrl();
+exports.databaseUrl = databaseUrl;
 const sslEnabled = process.env.DATABASE_SSL === "true" || process.env.MYSQL_SSL === "true";
-// Create one shared MySQL pool for the process.
+// Create one shared MySQL pool for the process
 const pool = promise_1.default.createPool({
     uri: databaseUrl,
     waitForConnections: true,
