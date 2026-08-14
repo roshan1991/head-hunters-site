@@ -9,6 +9,8 @@ const drizzle_orm_1 = require("drizzle-orm");
 const crypto_1 = __importDefault(require("crypto"));
 const utcTimestamp = (name) => (0, mysql_core_1.timestamp)(name, { mode: 'date' });
 const utcDateTime = (name) => (0, mysql_core_1.datetime)(name, { mode: 'date' });
+const createdAtTimestamp = (name = 'createdAt') => utcTimestamp(name).notNull().defaultNow().$defaultFn(() => new Date());
+const updatedAtTimestamp = (name = 'updatedAt') => utcTimestamp(name).notNull().defaultNow().$defaultFn(() => new Date()).$onUpdateFn(() => new Date());
 exports.job = (0, mysql_core_1.mysqlTable)('Job', {
     id: (0, mysql_core_1.varchar)('id', { length: 191 }).primaryKey().$defaultFn(() => crypto_1.default.randomUUID()),
     title: (0, mysql_core_1.varchar)('title', { length: 191 }).notNull(),
@@ -17,8 +19,8 @@ exports.job = (0, mysql_core_1.mysqlTable)('Job', {
     description: (0, mysql_core_1.text)('description').notNull(),
     status: (0, mysql_core_1.varchar)('status', { length: 191 }).notNull().default('ACTIVE'), // ACTIVE, CLOSED, DRAFT
     isHot: (0, mysql_core_1.boolean)('isHot').notNull().default(false),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 }, (table) => {
     return {
         statusIdx: (0, mysql_core_1.index)('job_status_idx').on(table.status),
@@ -33,8 +35,8 @@ exports.enquiry = (0, mysql_core_1.mysqlTable)('Enquiry', {
     type: (0, mysql_core_1.varchar)('type', { length: 191 }).notNull(), // HIRING, CANDIDATE, GENERAL
     message: (0, mysql_core_1.text)('message').notNull(),
     status: (0, mysql_core_1.varchar)('status', { length: 191 }).notNull().default('NEW'), // NEW, READ, ASSIGNED, ARCHIVED
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 }, (table) => {
     return {
         statusIdx: (0, mysql_core_1.index)('enquiry_status_idx').on(table.status),
@@ -45,7 +47,7 @@ exports.content = (0, mysql_core_1.mysqlTable)('Content', {
     id: (0, mysql_core_1.varchar)('id', { length: 191 }).primaryKey().$defaultFn(() => crypto_1.default.randomUUID()),
     key: (0, mysql_core_1.varchar)('key', { length: 191 }).notNull().unique(),
     value: (0, mysql_core_1.text)('value').notNull(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 });
 exports.article = (0, mysql_core_1.mysqlTable)('Article', {
     id: (0, mysql_core_1.varchar)('id', { length: 191 }).primaryKey().$defaultFn(() => crypto_1.default.randomUUID()),
@@ -55,8 +57,8 @@ exports.article = (0, mysql_core_1.mysqlTable)('Article', {
     excerpt: (0, mysql_core_1.text)('excerpt').notNull(),
     content: (0, mysql_core_1.text)('content').notNull(),
     isPublished: (0, mysql_core_1.boolean)('isPublished').notNull().default(false),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 });
 exports.knowledgeDocument = (0, mysql_core_1.mysqlTable)('KnowledgeDocument', {
     id: (0, mysql_core_1.varchar)('id', { length: 191 }).primaryKey().$defaultFn(() => crypto_1.default.randomUUID()),
@@ -65,7 +67,7 @@ exports.knowledgeDocument = (0, mysql_core_1.mysqlTable)('KnowledgeDocument', {
     version: (0, mysql_core_1.varchar)('version', { length: 191 }).notNull(),
     status: (0, mysql_core_1.varchar)('status', { length: 191 }).notNull(), // DRAFT, PROCESSING, INDEXED, APPROVED, INACTIVE, FAILED
     checksum: (0, mysql_core_1.varchar)('checksum', { length: 191 }).notNull(),
-    uploadedAt: utcTimestamp('uploadedAt').notNull().defaultNow(),
+    uploadedAt: createdAtTimestamp('uploadedAt'),
     uploadedBy: (0, mysql_core_1.varchar)('uploadedBy', { length: 191 }),
     indexedAt: utcTimestamp('indexedAt'),
 });
@@ -80,7 +82,7 @@ exports.knowledgeChunk = (0, mysql_core_1.mysqlTable)('KnowledgeChunk', {
     tokenCount: (0, mysql_core_1.int)('tokenCount').notNull(),
     vectorRecordId: (0, mysql_core_1.varchar)('vectorRecordId', { length: 191 }).notNull(),
     status: (0, mysql_core_1.varchar)('status', { length: 191 }).notNull().default('ACTIVE'),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
+    createdAt: createdAtTimestamp('createdAt'),
 }, (table) => {
     return {
         documentIdIdx: (0, mysql_core_1.index)('knowledge_chunk_document_id_idx').on(table.documentId),
@@ -93,8 +95,8 @@ exports.conversation = (0, mysql_core_1.mysqlTable)('Conversation', {
     status: (0, mysql_core_1.varchar)('status', { length: 191 }).notNull(), // BOT_ACTIVE, HUMAN_ACTIVE, CLOSED
     takenBy: (0, mysql_core_1.varchar)('takenBy', { length: 191 }),
     needsHuman: (0, mysql_core_1.boolean)('needsHuman').notNull().default(false),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
     mode: (0, mysql_core_1.varchar)('mode', { length: 191 }), // AI, HUMAN, CLOSED
     chatStatus: (0, mysql_core_1.varchar)('chatStatus', { length: 191 }), // OPEN, WAITING_FOR_ADMIN, RESOLVED
     assignedAdminId: (0, mysql_core_1.varchar)('assignedAdminId', { length: 191 }),
@@ -108,10 +110,9 @@ exports.conversation = (0, mysql_core_1.mysqlTable)('Conversation', {
     agentJoinedAt: utcTimestamp('agentJoinedAt'),
     handoffCompletedAt: utcTimestamp('handoffCompletedAt'),
     handoffFailureReason: (0, mysql_core_1.text)('handoffFailureReason'),
-    // --- Workflow state machine (added in migration 0004) ---
     workflowType: (0, mysql_core_1.varchar)('workflowType', { length: 50 }).default('NONE'), // NONE | CANDIDATE | EMPLOYER | JOB_APPLICATION | HUMAN_HANDOFF
     workflowState: (0, mysql_core_1.varchar)('workflowState', { length: 100 }).default('IDLE'), // e.g. IDLE | EMPLOYER_COLLECTING_NAME | ...
-    workflowData: (0, mysql_core_1.text)('workflowData'), // JSON-serialised collected data (stored as text for broad MySQL compat)
+    workflowData: (0, mysql_core_1.text)('workflowData'), // JSON-serialised collected data
     workflowUpdatedAt: utcTimestamp('workflowUpdatedAt'),
 }, (table) => {
     return {
@@ -124,7 +125,7 @@ exports.message = (0, mysql_core_1.mysqlTable)('Message', {
     conversationId: (0, mysql_core_1.varchar)('conversationId', { length: 191 }).notNull(),
     senderType: (0, mysql_core_1.varchar)('senderType', { length: 191 }).notNull(), // USER, ADMIN, BOT
     content: (0, mysql_core_1.text)('content').notNull(),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
+    createdAt: createdAtTimestamp('createdAt'),
     isReadByAdmin: (0, mysql_core_1.boolean)('isReadByAdmin').notNull().default(false),
     sender: (0, mysql_core_1.varchar)('sender', { length: 191 }), // USER, AI, ADMIN, SYSTEM
     grounded: (0, mysql_core_1.boolean)('grounded'),
@@ -145,8 +146,8 @@ exports.adminUser = (0, mysql_core_1.mysqlTable)('AdminUser', {
     passwordHash: (0, mysql_core_1.varchar)('passwordHash', { length: 191 }).notNull(),
     name: (0, mysql_core_1.varchar)('name', { length: 191 }),
     role: (0, mysql_core_1.varchar)('role', { length: 191 }).notNull().default('ADMIN'), // SUPER_ADMIN, ADMIN, USER
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 }, (table) => {
     return {
         emailIdx: (0, mysql_core_1.index)('admin_user_email_idx').on(table.email),
@@ -170,8 +171,8 @@ exports.candidate = (0, mysql_core_1.mysqlTable)('Candidate', {
     consentTimestamp: utcTimestamp('consentTimestamp'),
     privacyPolicyVersion: (0, mysql_core_1.varchar)('privacyPolicyVersion', { length: 50 }).default('1.0'),
     consentConversationId: (0, mysql_core_1.varchar)('consentConversationId', { length: 191 }),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 }, (table) => {
     return {
         emailIdx: (0, mysql_core_1.index)('candidate_email_idx').on(table.email),
@@ -188,7 +189,7 @@ exports.candidateConsent = (0, mysql_core_1.mysqlTable)('CandidateConsent', {
     privacyPolicyVersion: (0, mysql_core_1.varchar)('privacyPolicyVersion', { length: 50 }).notNull().default('1.0'),
     consentType: (0, mysql_core_1.varchar)('consentType', { length: 100 }).notNull().default('CANDIDATE_PROFILE_AND_CV'),
     accepted: (0, mysql_core_1.boolean)('accepted').notNull().default(true),
-    acceptedAt: utcTimestamp('acceptedAt').notNull().defaultNow(),
+    acceptedAt: createdAtTimestamp('acceptedAt'),
     source: (0, mysql_core_1.varchar)('source', { length: 50 }).notNull().default('AI_CHAT'),
 }, (table) => {
     return {
@@ -202,7 +203,7 @@ exports.jobApplication = (0, mysql_core_1.mysqlTable)('JobApplication', {
     applicationStatus: (0, mysql_core_1.varchar)('applicationStatus', { length: 191 }).notNull().default('SUBMITTED'), // SUBMITTED, REVIEWING, SHORTLISTED, REJECTED
     source: (0, mysql_core_1.varchar)('source', { length: 191 }).notNull().default('AI_CHAT'),
     conversationId: (0, mysql_core_1.varchar)('conversationId', { length: 191 }),
-    appliedAt: utcTimestamp('appliedAt').notNull().defaultNow(),
+    appliedAt: createdAtTimestamp('appliedAt'),
 }, (table) => {
     return {
         candidateIdIdx: (0, mysql_core_1.index)('job_application_candidate_id_idx').on(table.candidateId),
@@ -216,8 +217,8 @@ exports.employer = (0, mysql_core_1.mysqlTable)('Employer', {
     name: (0, mysql_core_1.varchar)('name', { length: 191 }),
     dateOfBirth: utcDateTime('dateOfBirth').notNull(),
     parentalConsent: (0, mysql_core_1.boolean)('parentalConsent').notNull().default(false),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
-    updatedAt: utcTimestamp('updatedAt').notNull().defaultNow().$onUpdateFn(() => new Date()),
+    createdAt: createdAtTimestamp('createdAt'),
+    updatedAt: updatedAtTimestamp('updatedAt'),
 }, (table) => {
     return {
         emailIdx: (0, mysql_core_1.index)('employer_email_idx').on(table.email),
@@ -241,7 +242,7 @@ exports.passwordResetToken = (0, mysql_core_1.mysqlTable)('PasswordResetToken', 
     token: (0, mysql_core_1.varchar)('token', { length: 191 }).primaryKey(),
     email: (0, mysql_core_1.varchar)('email', { length: 191 }).notNull(),
     expires: utcDateTime('expires').notNull(),
-    createdAt: utcTimestamp('createdAt').notNull().defaultNow(),
+    createdAt: createdAtTimestamp('createdAt'),
 });
 // Relations
 exports.conversationRelations = (0, drizzle_orm_1.relations)(exports.conversation, ({ many }) => ({

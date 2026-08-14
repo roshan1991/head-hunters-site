@@ -12,6 +12,19 @@ async function addColumnIfNotExists(table: string, column: string, definition: s
   }
 }
 
+async function fixTimestampDefaults(table: string, hasCreatedAt = true, hasUpdatedAt = true) {
+  try {
+    if (hasCreatedAt) {
+      await pool.query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`createdAt\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+    }
+    if (hasUpdatedAt) {
+      await pool.query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`updatedAt\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
+    }
+  } catch (err: any) {
+    console.warn(`Error updating timestamp defaults on '${table}':`, err.message);
+  }
+}
+
 async function syncDbSchema() {
   console.log('🔄 Checking and synchronizing database columns with schema...');
 
@@ -128,7 +141,19 @@ async function syncDbSchema() {
     }
   }
 
-  console.log('✅ Database schema synchronized successfully with all tables and columns.');
+  // Ensure default timestamps on existing tables
+  console.log('Ensuring default CURRENT_TIMESTAMP on all tables...');
+  await fixTimestampDefaults('Job', true, true);
+  await fixTimestampDefaults('Enquiry', true, true);
+  await fixTimestampDefaults('Article', true, true);
+  await fixTimestampDefaults('Content', false, true);
+  await fixTimestampDefaults('AdminUser', true, true);
+  await fixTimestampDefaults('Candidate', true, true);
+  await fixTimestampDefaults('Conversation', true, true);
+  await fixTimestampDefaults('Employer', true, true);
+  await fixTimestampDefaults('Message', true, false);
+
+  console.log('✅ Database schema synchronized successfully with all tables, columns, and timestamp defaults.');
   await pool.end();
 }
 
