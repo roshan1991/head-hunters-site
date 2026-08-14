@@ -1,0 +1,19 @@
+{
+  "name": "head-hunters-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Head Hunters Recruitment Platform",
+  "scripts": {
+    "migrate": "npm --prefix backend run migrate",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "db:migrate:schema": "npm --prefix backend run db:migrate:schema",
+    "db:sync": "npm --prefix backend run db:sync",
+    "db:seed": "npm --prefix backend run db:seed",
+    "seed:admin": "npm --prefix backend run seed:admin",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}
