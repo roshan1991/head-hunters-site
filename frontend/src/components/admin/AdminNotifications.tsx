@@ -32,31 +32,50 @@ export function AdminNotifications() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Load and poll notifications every 5s
+  // Load and poll notifications every 30s (only when tab is active and authenticated)
   useEffect(() => {
     let active = true;
+    let intervalId: any = null;
 
     async function fetchNotifications() {
+      // Don't poll if browser tab is hidden
+      if (document.hidden) return;
+
       try {
-        // Use cookies (same as rest of admin) - no Authorization header needed
         const res = await fetch("/api/admin/notifications", {
           credentials: "include",
         });
+
+        // If not logged in, stop polling
+        if (res.status === 401 || res.status === 403) {
+          if (intervalId) clearInterval(intervalId);
+          return;
+        }
+
         if (res.ok) {
           const data = await res.json();
           if (active) setNotifications(data.notifications || []);
         }
       } catch (e) {
-        // Silently ignore - polling will retry
+        // Silently ignore network hiccups
       }
     }
 
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 5000);
+    intervalId = setInterval(fetchNotifications, 30000); // 30 seconds interval
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchNotifications();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       active = false;
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
