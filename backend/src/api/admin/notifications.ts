@@ -47,20 +47,21 @@ adminNotificationsRouter.get('/', requireAuth, async (req: any, res) => {
         id: `enquiry-${e.id}`,
         type: 'ENQUIRY',
         title: 'New Enquiry Received',
-        description: `${e.name} (${e.type})`,
-        message: e.message,
-        createdAt: e.createdAt.toISOString(),
+        description: `${e.name || 'Anonymous'} (${e.type || 'GENERAL'})`,
+        message: e.message || '',
+        createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : new Date().toISOString(),
         link: `/admin/enquiries?id=${e.id}`,
       })),
       ...takeoverWithMessages.map((c: any) => {
-        const visitorName = `Visitor #${c.userId.substring(c.userId.length - 4)}`;
+        const userIdStr = String(c.userId || '');
+        const visitorName = userIdStr.length > 4 ? `Visitor #${userIdStr.slice(-4)}` : `Visitor #${userIdStr || 'Guest'}`;
         return {
           id: `chat-${c.id}`,
           type: 'CHAT',
           title: 'Takeover Requested',
           description: visitorName,
-          message: c.lastMessage,
-          createdAt: c.updatedAt.toISOString(),
+          message: c.lastMessage || 'No messages yet',
+          createdAt: c.updatedAt ? new Date(c.updatedAt).toISOString() : (c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString()),
           link: `/admin/chat?select=${c.id}`,
         };
       }),
