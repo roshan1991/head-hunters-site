@@ -53,8 +53,34 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
         if (!name || !email || !file) {
             return res.status(400).json({ error: 'Name, email, and CV file are required' });
         }
+        // Check if candidate already exists by email
+        const [existing] = await db_1.db.select().from(schema_1.candidate).where((0, drizzle_orm_1.eq)(schema_1.candidate.email, email)).limit(1);
+        if (existing) {
+            // Remove old file if replaced
+            if (existing.cvFileName && existing.cvFileName !== file.filename) {
+                const oldPath = path_1.default.join(uploadDir, existing.cvFileName);
+                if (fs_1.default.existsSync(oldPath)) {
+                    try {
+                        fs_1.default.unlinkSync(oldPath);
+                    }
+                    catch (e) { }
+                }
+            }
+            await db_1.db.update(schema_1.candidate).set({
+                name,
+                phone: phone || existing.phone,
+                interestedJobs: interestedJobs || existing.interestedJobs,
+                cvFileName: file.filename,
+                originalCvFileName: file.originalname,
+                status: 'ACTIVE',
+                updatedAt: new Date(),
+            }).where((0, drizzle_orm_1.eq)(schema_1.candidate.id, existing.id));
+            const [updated] = await db_1.db.select().from(schema_1.candidate).where((0, drizzle_orm_1.eq)(schema_1.candidate.id, existing.id)).limit(1);
+            return res.status(200).json({ message: 'CV updated successfully', candidate: updated });
+        }
+        const candidateId = crypto_1.default.randomUUID();
         const newCandidate = {
-            id: crypto_1.default.randomUUID(),
+            id: candidateId,
             name,
             email,
             phone: phone || null,
@@ -62,7 +88,9 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
             cvFileName: file.filename,
             originalCvFileName: file.originalname,
             status: 'ACTIVE',
-            source: 'DIRECT_UPLOAD'
+            source: 'DIRECT_UPLOAD',
+            createdAt: new Date(),
+            updatedAt: new Date(),
         };
         await db_1.db.insert(schema_1.candidate).values(newCandidate);
         res.status(201).json({ message: 'CV uploaded successfully', candidate: newCandidate });

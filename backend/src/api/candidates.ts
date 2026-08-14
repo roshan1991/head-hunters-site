@@ -54,8 +54,35 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
       return res.status(400).json({ error: 'Name, email, and CV file are required' });
     }
 
+    // Check if candidate already exists by email
+    const [existing] = await db.select().from(candidate).where(eq(candidate.email, email)).limit(1);
+
+    if (existing) {
+      // Remove old file if replaced
+      if (existing.cvFileName && existing.cvFileName !== file.filename) {
+        const oldPath = path.join(uploadDir, existing.cvFileName);
+        if (fs.existsSync(oldPath)) {
+          try { fs.unlinkSync(oldPath); } catch (e) {}
+        }
+      }
+
+      await db.update(candidate).set({
+        name,
+        phone: phone || existing.phone,
+        interestedJobs: interestedJobs || existing.interestedJobs,
+        cvFileName: file.filename,
+        originalCvFileName: file.originalname,
+        status: 'ACTIVE',
+        updatedAt: new Date(),
+      }).where(eq(candidate.id, existing.id));
+
+      const [updated] = await db.select().from(candidate).where(eq(candidate.id, existing.id)).limit(1);
+      return res.status(200).json({ message: 'CV updated successfully', candidate: updated });
+    }
+
+    const candidateId = crypto.randomUUID();
     const newCandidate = {
-      id: crypto.randomUUID(),
+      id: candidateId,
       name,
       email,
       phone: phone || null,
@@ -63,7 +90,9 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
       cvFileName: file.filename,
       originalCvFileName: file.originalname,
       status: 'ACTIVE',
-      source: 'DIRECT_UPLOAD'
+      source: 'DIRECT_UPLOAD',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     await db.insert(candidate).values(newCandidate);

@@ -4,11 +4,13 @@ async function addColumnIfNotExists(table: string, column: string, definition: s
   try {
     const [rows]: any = await pool.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
     if (rows.length === 0) {
-      console.log(`Adding column '${column}' to table '${table}'...`);
+      console.log(`➕ Adding column '${column}' to table '${table}'...`);
       await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+    } else {
+      // console.log(`✓ Column '${column}' exists on '${table}'`);
     }
   } catch (err: any) {
-    console.warn(`Error adding column '${column}' to '${table}':`, err.message);
+    console.warn(`⚠️ Error checking/adding column '${column}' on '${table}':`, err.message);
   }
 }
 
@@ -21,12 +23,39 @@ async function fixTimestampDefaults(table: string, hasCreatedAt = true, hasUpdat
       await pool.query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`updatedAt\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
     }
   } catch (err: any) {
-    console.warn(`Error updating timestamp defaults on '${table}':`, err.message);
+    // console.warn(`Notice updating timestamp defaults on '${table}':`, err.message);
   }
 }
 
 async function syncDbSchema() {
-  console.log('🔄 Checking and synchronizing database columns with schema...');
+  console.log('🔄 Checking and synchronizing all database tables & columns with schema.ts...\n');
+
+  // Candidate columns
+  await addColumnIfNotExists('Candidate', 'name', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'phone', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'phoneNormalized', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'whatsapp', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'whatsappNormalized', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'location', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'status', "varchar(191) DEFAULT 'ACTIVE'");
+  await addColumnIfNotExists('Candidate', 'source', "varchar(191) DEFAULT 'WEBSITE'");
+  await addColumnIfNotExists('Candidate', 'interestedJobs', 'text NULL');
+  await addColumnIfNotExists('Candidate', 'cvFileName', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'originalCvFileName', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'consentAccepted', 'boolean NOT NULL DEFAULT false');
+  await addColumnIfNotExists('Candidate', 'consentTimestamp', 'timestamp NULL DEFAULT NULL');
+  await addColumnIfNotExists('Candidate', 'privacyPolicyVersion', "varchar(50) DEFAULT '1.0'");
+  await addColumnIfNotExists('Candidate', 'consentConversationId', 'varchar(191) NULL');
+  await addColumnIfNotExists('Candidate', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('Candidate', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  // Fix legacy columns on Candidate if present
+  try {
+    await pool.query('ALTER TABLE `Candidate` MODIFY COLUMN `dateOfBirth` DATETIME NULL DEFAULT NULL');
+  } catch (e) {}
+  try {
+    await pool.query('ALTER TABLE `Candidate` MODIFY COLUMN `parentalConsent` BOOLEAN NULL DEFAULT FALSE');
+  } catch (e) {}
 
   // Conversation columns
   await addColumnIfNotExists('Conversation', 'mode', 'varchar(191) NULL');
@@ -46,27 +75,56 @@ async function syncDbSchema() {
   await addColumnIfNotExists('Conversation', 'workflowState', "varchar(100) DEFAULT 'IDLE'");
   await addColumnIfNotExists('Conversation', 'workflowData', 'text NULL');
   await addColumnIfNotExists('Conversation', 'workflowUpdatedAt', 'timestamp NULL DEFAULT NULL');
+  await addColumnIfNotExists('Conversation', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('Conversation', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
   // Message columns
   await addColumnIfNotExists('Message', 'sender', 'varchar(191) NULL');
+  await addColumnIfNotExists('Message', 'isReadByAdmin', 'boolean NOT NULL DEFAULT false');
   await addColumnIfNotExists('Message', 'grounded', 'boolean NULL');
   await addColumnIfNotExists('Message', 'retrievedChunkIds', 'text NULL');
   await addColumnIfNotExists('Message', 'modelName', 'varchar(191) NULL');
   await addColumnIfNotExists('Message', 'latencyMs', 'int NULL');
   await addColumnIfNotExists('Message', 'errorCode', 'varchar(191) NULL');
+  await addColumnIfNotExists('Message', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
 
-  // Candidate columns
-  await addColumnIfNotExists('Candidate', 'phone', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'phoneNormalized', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'whatsapp', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'whatsappNormalized', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'interestedJobs', 'text NULL');
-  await addColumnIfNotExists('Candidate', 'cvFileName', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'originalCvFileName', 'varchar(191) NULL');
-  await addColumnIfNotExists('Candidate', 'consentAccepted', 'boolean NOT NULL DEFAULT false');
-  await addColumnIfNotExists('Candidate', 'consentTimestamp', 'timestamp NULL DEFAULT NULL');
-  await addColumnIfNotExists('Candidate', 'privacyPolicyVersion', "varchar(50) DEFAULT '1.0'");
-  await addColumnIfNotExists('Candidate', 'consentConversationId', 'varchar(191) NULL');
+  // Job columns
+  await addColumnIfNotExists('Job', 'title', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Job', 'location', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Job', 'type', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Job', 'description', 'text NOT NULL');
+  await addColumnIfNotExists('Job', 'status', "varchar(191) NOT NULL DEFAULT 'ACTIVE'");
+  await addColumnIfNotExists('Job', 'isHot', 'boolean NOT NULL DEFAULT false');
+  await addColumnIfNotExists('Job', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('Job', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  // Enquiry columns
+  await addColumnIfNotExists('Enquiry', 'name', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Enquiry', 'email', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Enquiry', 'phone', 'varchar(191) NULL');
+  await addColumnIfNotExists('Enquiry', 'type', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Enquiry', 'message', 'text NOT NULL');
+  await addColumnIfNotExists('Enquiry', 'status', "varchar(191) NOT NULL DEFAULT 'NEW'");
+  await addColumnIfNotExists('Enquiry', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('Enquiry', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  // Article columns
+  await addColumnIfNotExists('Article', 'title', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Article', 'slug', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Article', 'category', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('Article', 'excerpt', 'text NOT NULL');
+  await addColumnIfNotExists('Article', 'content', 'text NOT NULL');
+  await addColumnIfNotExists('Article', 'isPublished', 'boolean NOT NULL DEFAULT false');
+  await addColumnIfNotExists('Article', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('Article', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+  // AdminUser columns
+  await addColumnIfNotExists('AdminUser', 'email', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('AdminUser', 'passwordHash', 'varchar(191) NOT NULL');
+  await addColumnIfNotExists('AdminUser', 'name', 'varchar(191) NULL');
+  await addColumnIfNotExists('AdminUser', 'role', "varchar(191) NOT NULL DEFAULT 'ADMIN'");
+  await addColumnIfNotExists('AdminUser', 'createdAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP');
+  await addColumnIfNotExists('AdminUser', 'updatedAt', 'timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
   // Create tables if not exist
   const createTableStatements = [
@@ -142,7 +200,6 @@ async function syncDbSchema() {
   }
 
   // Ensure default timestamps on existing tables
-  console.log('Ensuring default CURRENT_TIMESTAMP on all tables...');
   await fixTimestampDefaults('Job', true, true);
   await fixTimestampDefaults('Enquiry', true, true);
   await fixTimestampDefaults('Article', true, true);
@@ -153,7 +210,16 @@ async function syncDbSchema() {
   await fixTimestampDefaults('Employer', true, true);
   await fixTimestampDefaults('Message', true, false);
 
-  console.log('✅ Database schema synchronized successfully with all tables, columns, and timestamp defaults.');
+  // Print all tables and their columns to confirm
+  console.log('\n📊 Current Database Schema Summary:');
+  const [tables]: any = await pool.query('SHOW TABLES');
+  for (const t of tables) {
+    const tableName = Object.values(t)[0] as string;
+    const [cols]: any = await pool.query(`SHOW COLUMNS FROM \`${tableName}\``);
+    console.log(`• ${tableName} (${cols.length} cols): ${cols.map((c: any) => c.Field).join(', ')}`);
+  }
+
+  console.log('\n✅ Database schema completely synchronized!');
   await pool.end();
 }
 
