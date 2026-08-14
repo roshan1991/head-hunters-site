@@ -43,6 +43,8 @@ async function main() {
       passwordHash,
       name: "Head Hunters Admin",
       role: "SUPER_ADMIN",
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     console.log(`Default admin created: ${fallbackEmail}`);

@@ -35,7 +35,9 @@ async function main() {
       email,
       name: 'System Administrator',
       passwordHash: hash,
-      role: 'SUPER_ADMIN'
+      role: 'SUPER_ADMIN',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     console.log(`Successfully created admin user: ${email}`);
