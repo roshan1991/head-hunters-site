@@ -1,1 +1,0 @@
-import{r}from"./index-D5JhiHrf.js";function c({title:n,description:t}){return r.useEffect(()=>{document.title=n;let e=document.querySelector('meta[name="description"]');e?e.setAttribute("content",t):(e=document.createElement("meta"),e.setAttribute("name","description"),e.setAttribute("content",t),document.head.appendChild(e))},[n,t]),null}export{c as S};

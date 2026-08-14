@@ -8,7 +8,6 @@ import { Footer } from "./components/layout/Footer";
 import { ProofStrip } from "./components/home/ProofStrip";
 import { Standards } from "./components/home/Standards";
 import { Story } from "./components/home/Story";
-import { Testimonials } from "./components/home/Testimonials";
 import { GlobalReach } from "./components/home/GlobalReach";
 import { Hero } from "./components/home/Hero";
 import { ServicesBento } from "./components/home/ServicesBento";
@@ -88,7 +87,6 @@ function HomePage() {
         {settings.show_jobs && <JobsSection recentJobs={latestJobs} />}
         {settings.show_story && <Story settings={settings} />}
         {settings.show_global_reach && <GlobalReach settings={settings} />}
-        {settings.show_testimonials && <Testimonials settings={settings} />}
         {settings.show_contact && <ContactSection settings={settings} />}
       </main>
       <Footer settings={settings} />
