@@ -24,7 +24,7 @@ export function AdminCandidatesPage() {
 
   const fetchCandidates = async () => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/candidates`);
       if (res.ok) {
         const data = await res.json();
@@ -38,7 +38,7 @@ export function AdminCandidatesPage() {
   };
 
   const handleDownloadCV = (filename: string, candidateName: string, originalName?: string | null) => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const apiUrl = import.meta.env.VITE_API_URL || '';
     if (!filename) {
       alert("No CV file available for this candidate.");
       return;
@@ -62,7 +62,7 @@ export function AdminCandidatesPage() {
     if (!window.confirm(`Are you sure you want to delete candidate "${candidateName}"?`)) return;
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/candidates/${id}`, {
         method: 'DELETE',
       });
