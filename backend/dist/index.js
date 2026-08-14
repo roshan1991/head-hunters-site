@@ -37,11 +37,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const http_1 = __importDefault(require("http"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = require("./lib/db");
 const schema_1 = require("./db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
+const notifications_1 = require("./lib/notifications");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const candidateEnvPaths = [
@@ -88,7 +90,7 @@ const jobs_1 = __importDefault(require("./api/admin/jobs"));
 const articles_1 = require("./api/admin/articles");
 const enquiries_1 = require("./api/admin/enquiries");
 const users_1 = require("./api/admin/users");
-const notifications_1 = require("./api/admin/notifications");
+const notifications_2 = require("./api/admin/notifications");
 // chat, knowledge, and ai-settings routers are imported dynamically below
 const tawk_settings_1 = require("./api/admin/tawk-settings");
 const enquiries_2 = require("./api/enquiries");
@@ -136,7 +138,7 @@ app.use('/api/admin/jobs', jobs_1.default);
 app.use('/api/admin/articles', articles_1.adminArticlesRouter);
 app.use('/api/admin/enquiries', enquiries_1.adminEnquiriesRouter);
 app.use('/api/admin/users', users_1.adminUsersRouter);
-app.use('/api/admin/notifications', notifications_1.adminNotificationsRouter);
+app.use('/api/admin/notifications', notifications_2.adminNotificationsRouter);
 app.use('/api/admin/tawk-settings', tawk_settings_1.tawkSettingsRouter);
 // Endpoint: Get latest 3 active jobs for homepage
 app.get('/api/jobs/latest', async (req, res) => {
@@ -240,6 +242,8 @@ app.use((req, res, next) => {
         }
     });
 });
-app.listen(port, () => {
+const server = http_1.default.createServer(app);
+(0, notifications_1.setupNotificationWebSocket)(server);
+server.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });

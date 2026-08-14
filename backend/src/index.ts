@@ -1,9 +1,11 @@
 import express from 'express';
+import http from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { db } from './lib/db';
 import { job } from './db/schema';
 import { desc, sql } from 'drizzle-orm';
+import { setupNotificationWebSocket } from './lib/notifications';
 
 import fs from 'fs';
 import path from 'path';
@@ -216,6 +218,9 @@ app.use((req, res, next) => {
   });
 });
 
-app.listen(port, () => {
+const server = http.createServer(app);
+setupNotificationWebSocket(server);
+
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });

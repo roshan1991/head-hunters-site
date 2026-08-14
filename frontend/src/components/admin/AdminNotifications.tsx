@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bell, Inbox, MessageSquare, AlertCircle, Clock } from "lucide-react";
+import { Bell, Inbox, MessageSquare, AlertCircle, Clock, Wifi, WifiOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -29,53 +29,90 @@ function formatRelativeTime(dateString: string) {
 export function AdminNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<any>(null);
+  const retryCountRef = useRef(0);
   const navigate = useNavigate();
 
-  // Load and poll notifications every 30s (only when tab is active and authenticated)
+  // Establish WebSocket connection with auto-reconnect
   useEffect(() => {
-    let active = true;
-    let intervalId: any = null;
+    let isMounted = true;
 
-    async function fetchNotifications() {
-      // Don't poll if browser tab is hidden
-      if (document.hidden) return;
+    function connectWebSocket() {
+      if (!isMounted) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}/ws/notifications`;
 
       try {
-        const res = await fetch("/api/admin/notifications", {
-          credentials: "include",
-        });
+        const socket = new WebSocket(wsUrl);
+        socketRef.current = socket;
 
-        // If not logged in, stop polling
-        if (res.status === 401 || res.status === 403) {
-          if (intervalId) clearInterval(intervalId);
-          return;
-        }
+        socket.onopen = () => {
+          if (!isMounted) return;
+          setIsConnected(true);
+          retryCountRef.current = 0;
+        };
 
-        if (res.ok) {
-          const data = await res.json();
-          if (active) setNotifications(data.notifications || []);
-        }
-      } catch (e) {
-        // Silently ignore network hiccups
+        socket.onmessage = (event) => {
+          if (!isMounted) return;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "NOTIFICATIONS_SNAPSHOT" || data.type === "NOTIFICATIONS_UPDATE") {
+              setNotifications(data.notifications || []);
+            }
+          } catch (err) {
+            console.error("Failed to parse WebSocket notification message:", err);
+          }
+        };
+
+        socket.onclose = (event) => {
+          if (!isMounted) return;
+          setIsConnected(false);
+
+          // If unauthorized (401 from server close), don't reconnect
+          if (event.code === 4401 || event.reason === "Unauthorized") {
+            return;
+          }
+
+          // Exponential backoff reconnection (max 15s)
+          const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 15000);
+          retryCountRef.current += 1;
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+        };
+
+        socket.onerror = () => {
+          // Handled in onclose
+        };
+      } catch (err) {
+        setIsConnected(false);
+        const delay = Math.min(1000 * Math.pow(1.5, retryCountRef.current), 15000);
+        retryCountRef.current += 1;
+        reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
       }
     }
 
-    fetchNotifications();
-    intervalId = setInterval(fetchNotifications, 30000); // 30 seconds interval
+    // Initial fallback REST fetch in case WebSocket handshake takes a moment
+    fetch("/api/admin/notifications", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.notifications) {
+          setNotifications(data.notifications);
+        }
+      })
+      .catch(() => {});
 
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchNotifications();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    connectWebSocket();
 
     return () => {
-      active = false;
-      if (intervalId) clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      isMounted = false;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (socketRef.current) {
+        socketRef.current.close();
+      }
     };
   }, []);
 
@@ -104,8 +141,9 @@ export function AdminNotifications() {
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all text-white/80 hover:text-white cursor-pointer select-none"
         aria-label="Notifications"
+        title={isConnected ? "Realtime Notifications Connected" : "Connecting to Notifications..."}
       >
-        <Bell size={18} className={count > 0 ? "animate-pulse" : ""} />
+        <Bell size={18} className={count > 0 ? "animate-pulse text-amber-400" : ""} />
         {count > 0 && (
           <span className="absolute -top-1 -right-1 min-w-5 h-5 rounded-full bg-red-500 border-2 border-[#0B0B0C] flex items-center justify-center text-[10px] text-white font-extrabold px-1">
             {count}
@@ -125,7 +163,15 @@ export function AdminNotifications() {
           >
             {/* Header */}
             <div className="px-4.5 py-3.5 border-b border-white/6 bg-white/2 flex items-center justify-between shrink-0">
-              <span className="text-xs font-bold text-white">System Notifications</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">System Notifications</span>
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-amber-500 animate-ping"
+                  }`}
+                  title={isConnected ? "WebSocket Live" : "Connecting..."}
+                />
+              </div>
               {count > 0 && (
                 <span className="text-[10px] bg-[#02695e]/30 text-[#04a891] border border-[#04a891]/20 font-bold px-2 py-0.5 rounded-full">
                   {count} Active
@@ -149,11 +195,13 @@ export function AdminNotifications() {
                       onClick={() => handleNotificationClick(n.link)}
                       className="p-4 cursor-pointer hover:bg-white/3 transition-colors flex items-start gap-3.5 group"
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
-                        n.type === "CHAT"
-                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
-                          : "bg-blue-500/10 border-blue-500/20 text-blue-400 group-hover:bg-blue-500/20"
-                      }`}>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                          n.type === "CHAT"
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-400 group-hover:bg-amber-500/20"
+                            : "bg-blue-500/10 border-blue-500/20 text-blue-400 group-hover:bg-blue-500/20"
+                        }`}
+                      >
                         <Icon size={14} />
                       </div>
                       <div className="flex-1 min-w-0">

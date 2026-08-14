@@ -7,6 +7,7 @@ const schema_1 = require("../../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_1 = require("../../middleware/auth");
 const email_1 = require("../../lib/email");
+const notifications_1 = require("../../lib/notifications");
 exports.adminEnquiriesRouter = (0, express_1.Router)();
 exports.adminEnquiriesRouter.use(auth_1.requireAuth);
 // GET /api/admin/enquiries - List all enquiries
@@ -28,6 +29,7 @@ exports.adminEnquiriesRouter.put('/:id/status', async (req, res) => {
         if (!status)
             return res.status(400).json({ error: 'Status is required' });
         await db_1.db.update(schema_1.enquiry).set({ status }).where((0, drizzle_orm_1.eq)(schema_1.enquiry.id, id));
+        (0, notifications_1.broadcastNotificationUpdate)().catch(console.error);
         return res.json({ success: true });
     }
     catch (error) {
@@ -76,6 +78,7 @@ exports.adminEnquiriesRouter.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         await db_1.db.delete(schema_1.enquiry).where((0, drizzle_orm_1.eq)(schema_1.enquiry.id, id));
+        (0, notifications_1.broadcastNotificationUpdate)().catch(console.error);
         return res.json({ success: true });
     }
     catch (error) {

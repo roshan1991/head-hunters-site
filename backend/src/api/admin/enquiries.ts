@@ -4,6 +4,7 @@ import { enquiry } from '../../db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../../middleware/auth';
 import { sendEnquiryReply } from '../../lib/email';
+import { broadcastNotificationUpdate } from '../../lib/notifications';
 
 export const adminEnquiriesRouter = Router();
 
@@ -27,6 +28,7 @@ adminEnquiriesRouter.put('/:id/status', async (req, res) => {
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'Status is required' });
     await db.update(enquiry).set({ status }).where(eq(enquiry.id, id));
+    broadcastNotificationUpdate().catch(console.error);
     return res.json({ success: true });
   } catch (error) {
     console.error('Failed to update enquiry status:', error);
@@ -81,6 +83,7 @@ adminEnquiriesRouter.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await db.delete(enquiry).where(eq(enquiry.id, id));
+    broadcastNotificationUpdate().catch(console.error);
     return res.json({ success: true });
   } catch (error) {
     console.error('Failed to delete enquiry:', error);

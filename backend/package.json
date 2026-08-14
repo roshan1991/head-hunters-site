@@ -34,6 +34,7 @@
     "mysql2": "^3.23.0",
     "pdf-parse": "^2.4.5",
     "resend": "^6.17.2",
+    "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -45,6 +46,7 @@
     "@types/multer": "^2.2.0",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.20.0",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
     "pg": "^8.22.0",
     "ts-node": "^10.9.2",

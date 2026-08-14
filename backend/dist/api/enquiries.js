@@ -8,6 +8,7 @@ const express_1 = require("express");
 const db_1 = require("../lib/db");
 const schema_1 = require("../db/schema");
 const email_1 = require("../lib/email");
+const notifications_1 = require("../lib/notifications");
 const drizzle_orm_1 = require("drizzle-orm");
 const crypto_1 = __importDefault(require("crypto"));
 exports.enquiriesRouter = (0, express_1.Router)();
@@ -55,6 +56,8 @@ exports.enquiriesRouter.post('/', async (req, res) => {
             .from(schema_1.enquiry)
             .where((0, drizzle_orm_1.eq)(schema_1.enquiry.id, enquiryId))
             .limit(1);
+        // Broadcast new notification via WebSocket to all connected admins
+        (0, notifications_1.broadcastNotificationUpdate)().catch((err) => console.error('WS broadcast error:', err));
         // Try sending emails but don't fail the request if it errors
         try {
             await (0, email_1.sendEnquiryNotification)({ name, email, phone, type, message });

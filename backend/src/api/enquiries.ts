@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../lib/db';
 import { enquiry } from '../db/schema';
 import { sendEnquiryNotification, sendEnquiryConfirmation } from '../lib/email';
+import { broadcastNotificationUpdate } from '../lib/notifications';
 import { eq } from 'drizzle-orm';
 import crypto from "crypto";
 
@@ -62,6 +63,9 @@ enquiriesRouter.post('/', async (req, res) => {
       .from(enquiry)
       .where(eq(enquiry.id, enquiryId))
       .limit(1);
+
+    // Broadcast new notification via WebSocket to all connected admins
+    broadcastNotificationUpdate().catch((err) => console.error('WS broadcast error:', err));
 
     // Try sending emails but don't fail the request if it errors
     try {
