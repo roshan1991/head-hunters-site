@@ -3,27 +3,40 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { db } from '../lib/db';
-import { candidate } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { candidate, jobApplication } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
 import crypto from 'crypto';
 
 const router = Router();
 
-// Ensure uploads directory exists
-const uploadDir = path.resolve(process.cwd(), 'uploads/cvs');
-const parentUploadDir = path.resolve(process.cwd(), '../uploads/cvs');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure upload directories exist
+const jobsUploadDir = path.resolve(process.cwd(), 'uploads/jobs');
+const cvsUploadDir = path.resolve(process.cwd(), 'uploads/cvs');
+const parentJobsUploadDir = path.resolve(process.cwd(), '../uploads/jobs');
+const parentCvsUploadDir = path.resolve(process.cwd(), '../uploads/cvs');
 
-// Configure multer storage
+[jobsUploadDir, cvsUploadDir].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+// Configure multer storage for jobs folder and renaming with jobId
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, jobsUploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const rawJobId = (req.body?.jobId || '').toString().trim();
+    // Sanitize jobId for filename safety
+    const safeJobId = rawJobId ? rawJobId.replace(/[^a-zA-Z0-9_-]/g, '_') : 'general';
+    const timestamp = Date.now();
+    const randomSuffix = Math.round(Math.random() * 1e6);
+    const ext = path.extname(file.originalname);
+    
+    // Rename as <jobId>-<timestamp>-<suffix>.<ext>
+    const generatedName = `${safeJobId}-${timestamp}-${randomSuffix}${ext}`;
+    cb(null, generatedName);
   }
 });
 
@@ -44,10 +57,25 @@ const upload = multer({
   }
 });
 
+// Helper to find file in candidate directories
+function findFilePath(filename: string): string | null {
+  const candidatePaths = [
+    path.join(jobsUploadDir, filename),
+    path.join(parentJobsUploadDir, filename),
+    path.join(cvsUploadDir, filename),
+    path.join(parentCvsUploadDir, filename),
+  ];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
 // POST /api/candidates/upload
 router.post('/upload', upload.single('cv'), async (req, res) => {
   try {
-    const { name, email, phone, interestedJobs } = req.body;
+    const { name, email, phone, interestedJobs, jobId } = req.body;
     const file = req.file;
 
     if (!name || !email || !file) {
@@ -56,12 +84,13 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
 
     // Check if candidate already exists by email
     const [existing] = await db.select().from(candidate).where(eq(candidate.email, email)).limit(1);
+    let candidateId = existing?.id;
 
     if (existing) {
       // Remove old file if replaced
       if (existing.cvFileName && existing.cvFileName !== file.filename) {
-        const oldPath = path.join(uploadDir, existing.cvFileName);
-        if (fs.existsSync(oldPath)) {
+        const oldPath = findFilePath(existing.cvFileName);
+        if (oldPath) {
           try { fs.unlinkSync(oldPath); } catch (e) {}
         }
       }
@@ -76,34 +105,62 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
         updatedAt: new Date(),
       }).where(eq(candidate.id, existing.id));
 
-      const [updated] = await db.select().from(candidate).where(eq(candidate.id, existing.id)).limit(1);
-      return res.status(200).json({ message: 'CV updated successfully', candidate: updated });
+      candidateId = existing.id;
+    } else {
+      candidateId = crypto.randomUUID();
+      const newCandidate = {
+        id: candidateId,
+        name,
+        email,
+        phone: phone || null,
+        interestedJobs: interestedJobs || null,
+        cvFileName: file.filename,
+        originalCvFileName: file.originalname,
+        status: 'ACTIVE',
+        source: 'DIRECT_UPLOAD',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      await db.insert(candidate).values(newCandidate);
     }
 
-    const candidateId = crypto.randomUUID();
-    const newCandidate = {
-      id: candidateId,
-      name,
-      email,
-      phone: phone || null,
-      interestedJobs: interestedJobs || null,
-      cvFileName: file.filename,
-      originalCvFileName: file.originalname,
-      status: 'ACTIVE',
-      source: 'DIRECT_UPLOAD',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // If a specific jobId was provided, record the job application
+    if (jobId && candidateId) {
+      try {
+        const existingApp = await db.select()
+          .from(jobApplication)
+          .where(and(eq(jobApplication.jobId, jobId), eq(jobApplication.candidateId, candidateId)))
+          .limit(1);
 
-    await db.insert(candidate).values(newCandidate);
+        if (existingApp.length === 0) {
+          await db.insert(jobApplication).values({
+            id: crypto.randomUUID(),
+            jobId,
+            candidateId,
+            applicationStatus: 'SUBMITTED',
+            source: 'WEBSITE',
+            appliedAt: new Date(),
+          });
+        }
+      } catch (appErr) {
+        console.warn('Notice on jobApplication creation:', appErr);
+      }
+    }
 
-    res.status(201).json({ message: 'CV uploaded successfully', candidate: newCandidate });
+    const [savedCandidate] = await db.select().from(candidate).where(eq(candidate.id, candidateId)).limit(1);
+    return res.status(201).json({
+      message: 'CV uploaded successfully',
+      candidate: savedCandidate,
+      jobId: jobId || null,
+      folder: 'jobs'
+    });
   } catch (error: any) {
     console.error('Error uploading CV:', error);
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'A candidate with this email already exists' });
     }
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
@@ -121,13 +178,9 @@ router.get('/', async (req, res) => {
 // GET /api/candidates/download/:filename
 router.get('/download/:filename', (req, res) => {
   const filename = req.params.filename;
-  let filePath = path.join(uploadDir, filename);
+  const filePath = findFilePath(filename);
 
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(parentUploadDir, filename);
-  }
-
-  if (fs.existsSync(filePath)) {
+  if (filePath) {
     res.download(filePath);
   } else {
     res.status(404).json({ error: 'File not found' });
@@ -144,8 +197,8 @@ router.delete('/:id', async (req, res) => {
     }
 
     if (existing.cvFileName) {
-      const filePath = path.join(uploadDir, existing.cvFileName);
-      if (fs.existsSync(filePath)) {
+      const filePath = findFilePath(existing.cvFileName);
+      if (filePath) {
         try { fs.unlinkSync(filePath); } catch (e) {}
       }
     }

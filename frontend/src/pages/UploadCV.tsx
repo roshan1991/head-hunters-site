@@ -1,12 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SEO } from '../components/layout/SEO';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
 import { Button } from '../components/ui/Button';
-import { UploadCloud, CheckCircle, File, X } from 'lucide-react';
+import { UploadCloud, CheckCircle, File, X, Briefcase } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function UploadCVPage() {
+  const [searchParams] = useSearchParams();
+  const jobIdParam = searchParams.get('jobId') || '';
+  const jobTitleParam = searchParams.get('jobTitle') || '';
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +19,17 @@ export function UploadCVPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [interestedJobs, setInterestedJobs] = useState('');
+  const [interestedJobs, setInterestedJobs] = useState(jobTitleParam);
+  const [jobId, setJobId] = useState(jobIdParam);
+
+  useEffect(() => {
+    if (jobTitleParam && !interestedJobs) {
+      setInterestedJobs(jobTitleParam);
+    }
+    if (jobIdParam) {
+      setJobId(jobIdParam);
+    }
+  }, [jobTitleParam, jobIdParam]);
   
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,6 +98,9 @@ export function UploadCVPage() {
       formData.append('email', email);
       formData.append('phone', phone);
       formData.append('interestedJobs', interestedJobs);
+      if (jobId) {
+        formData.append('jobId', jobId);
+      }
       formData.append('cv', file);
       
       const apiUrl = import.meta.env.VITE_API_URL || '';

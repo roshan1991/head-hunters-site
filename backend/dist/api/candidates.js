@@ -12,20 +12,31 @@ const schema_1 = require("../db/schema");
 const drizzle_orm_1 = require("drizzle-orm");
 const crypto_1 = __importDefault(require("crypto"));
 const router = (0, express_1.Router)();
-// Ensure uploads directory exists
-const uploadDir = path_1.default.resolve(process.cwd(), 'uploads/cvs');
-const parentUploadDir = path_1.default.resolve(process.cwd(), '../uploads/cvs');
-if (!fs_1.default.existsSync(uploadDir)) {
-    fs_1.default.mkdirSync(uploadDir, { recursive: true });
-}
-// Configure multer storage
+// Ensure upload directories exist
+const jobsUploadDir = path_1.default.resolve(process.cwd(), 'uploads/jobs');
+const cvsUploadDir = path_1.default.resolve(process.cwd(), 'uploads/cvs');
+const parentJobsUploadDir = path_1.default.resolve(process.cwd(), '../uploads/jobs');
+const parentCvsUploadDir = path_1.default.resolve(process.cwd(), '../uploads/cvs');
+[jobsUploadDir, cvsUploadDir].forEach((dir) => {
+    if (!fs_1.default.existsSync(dir)) {
+        fs_1.default.mkdirSync(dir, { recursive: true });
+    }
+});
+// Configure multer storage for jobs folder and renaming with jobId
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, uploadDir);
+        cb(null, jobsUploadDir);
     },
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + path_1.default.extname(file.originalname));
+        const rawJobId = (req.body?.jobId || '').toString().trim();
+        // Sanitize jobId for filename safety
+        const safeJobId = rawJobId ? rawJobId.replace(/[^a-zA-Z0-9_-]/g, '_') : 'general';
+        const timestamp = Date.now();
+        const randomSuffix = Math.round(Math.random() * 1e6);
+        const ext = path_1.default.extname(file.originalname);
+        // Rename as <jobId>-<timestamp>-<suffix>.<ext>
+        const generatedName = `${safeJobId}-${timestamp}-${randomSuffix}${ext}`;
+        cb(null, generatedName);
     }
 });
 const upload = (0, multer_1.default)({
@@ -45,21 +56,36 @@ const upload = (0, multer_1.default)({
         }
     }
 });
+// Helper to find file in candidate directories
+function findFilePath(filename) {
+    const candidatePaths = [
+        path_1.default.join(jobsUploadDir, filename),
+        path_1.default.join(parentJobsUploadDir, filename),
+        path_1.default.join(cvsUploadDir, filename),
+        path_1.default.join(parentCvsUploadDir, filename),
+    ];
+    for (const p of candidatePaths) {
+        if (fs_1.default.existsSync(p))
+            return p;
+    }
+    return null;
+}
 // POST /api/candidates/upload
 router.post('/upload', upload.single('cv'), async (req, res) => {
     try {
-        const { name, email, phone, interestedJobs } = req.body;
+        const { name, email, phone, interestedJobs, jobId } = req.body;
         const file = req.file;
         if (!name || !email || !file) {
             return res.status(400).json({ error: 'Name, email, and CV file are required' });
         }
         // Check if candidate already exists by email
         const [existing] = await db_1.db.select().from(schema_1.candidate).where((0, drizzle_orm_1.eq)(schema_1.candidate.email, email)).limit(1);
+        let candidateId = existing?.id;
         if (existing) {
             // Remove old file if replaced
             if (existing.cvFileName && existing.cvFileName !== file.filename) {
-                const oldPath = path_1.default.join(uploadDir, existing.cvFileName);
-                if (fs_1.default.existsSync(oldPath)) {
+                const oldPath = findFilePath(existing.cvFileName);
+                if (oldPath) {
                     try {
                         fs_1.default.unlinkSync(oldPath);
                     }
@@ -75,32 +101,61 @@ router.post('/upload', upload.single('cv'), async (req, res) => {
                 status: 'ACTIVE',
                 updatedAt: new Date(),
             }).where((0, drizzle_orm_1.eq)(schema_1.candidate.id, existing.id));
-            const [updated] = await db_1.db.select().from(schema_1.candidate).where((0, drizzle_orm_1.eq)(schema_1.candidate.id, existing.id)).limit(1);
-            return res.status(200).json({ message: 'CV updated successfully', candidate: updated });
+            candidateId = existing.id;
         }
-        const candidateId = crypto_1.default.randomUUID();
-        const newCandidate = {
-            id: candidateId,
-            name,
-            email,
-            phone: phone || null,
-            interestedJobs: interestedJobs || null,
-            cvFileName: file.filename,
-            originalCvFileName: file.originalname,
-            status: 'ACTIVE',
-            source: 'DIRECT_UPLOAD',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        };
-        await db_1.db.insert(schema_1.candidate).values(newCandidate);
-        res.status(201).json({ message: 'CV uploaded successfully', candidate: newCandidate });
+        else {
+            candidateId = crypto_1.default.randomUUID();
+            const newCandidate = {
+                id: candidateId,
+                name,
+                email,
+                phone: phone || null,
+                interestedJobs: interestedJobs || null,
+                cvFileName: file.filename,
+                originalCvFileName: file.originalname,
+                status: 'ACTIVE',
+                source: 'DIRECT_UPLOAD',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
+            await db_1.db.insert(schema_1.candidate).values(newCandidate);
+        }
+        // If a specific jobId was provided, record the job application
+        if (jobId && candidateId) {
+            try {
+                const existingApp = await db_1.db.select()
+                    .from(schema_1.jobApplication)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_1.jobApplication.jobId, jobId), (0, drizzle_orm_1.eq)(schema_1.jobApplication.candidateId, candidateId)))
+                    .limit(1);
+                if (existingApp.length === 0) {
+                    await db_1.db.insert(schema_1.jobApplication).values({
+                        id: crypto_1.default.randomUUID(),
+                        jobId,
+                        candidateId,
+                        applicationStatus: 'SUBMITTED',
+                        source: 'WEBSITE',
+                        appliedAt: new Date(),
+                    });
+                }
+            }
+            catch (appErr) {
+                console.warn('Notice on jobApplication creation:', appErr);
+            }
+        }
+        const [savedCandidate] = await db_1.db.select().from(schema_1.candidate).where((0, drizzle_orm_1.eq)(schema_1.candidate.id, candidateId)).limit(1);
+        return res.status(201).json({
+            message: 'CV uploaded successfully',
+            candidate: savedCandidate,
+            jobId: jobId || null,
+            folder: 'jobs'
+        });
     }
     catch (error) {
         console.error('Error uploading CV:', error);
         if (error.code === 'ER_DUP_ENTRY') {
             return res.status(409).json({ error: 'A candidate with this email already exists' });
         }
-        res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 // GET /api/candidates
@@ -117,11 +172,8 @@ router.get('/', async (req, res) => {
 // GET /api/candidates/download/:filename
 router.get('/download/:filename', (req, res) => {
     const filename = req.params.filename;
-    let filePath = path_1.default.join(uploadDir, filename);
-    if (!fs_1.default.existsSync(filePath)) {
-        filePath = path_1.default.join(parentUploadDir, filename);
-    }
-    if (fs_1.default.existsSync(filePath)) {
+    const filePath = findFilePath(filename);
+    if (filePath) {
         res.download(filePath);
     }
     else {
@@ -137,8 +189,8 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Candidate not found' });
         }
         if (existing.cvFileName) {
-            const filePath = path_1.default.join(uploadDir, existing.cvFileName);
-            if (fs_1.default.existsSync(filePath)) {
+            const filePath = findFilePath(existing.cvFileName);
+            if (filePath) {
                 try {
                     fs_1.default.unlinkSync(filePath);
                 }
