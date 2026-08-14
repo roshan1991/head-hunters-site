@@ -12,7 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
     "db:migrate:data": "tsx src/scripts/migrate-postgres-to-mysql.ts",
-    "db:sync": "tsx src/scripts/sync-db-schema.ts",
+    "db:migrate:schema": "node src/scripts/migrate-schema.js",
+    "db:sync": "node src/scripts/migrate-schema.js",
     "seed:admin": "tsx src/scripts/seed-admin.ts"
   },
   "keywords": [],
